@@ -1,16 +1,36 @@
 import requests
+import os
+import csv
 from bs4 import BeautifulSoup
 import re
 
 
 requests.packages.urllib3.disable_warnings()
-base_url = 'https://www.gestorias.es'
+
+
+def scrape(cities):
+    for city in cities:
+        print("###########" + city + "###########")
+        print("########### HREFS ###########")
+        hrefs = scrape_page(city)
+        print("########### WEBS ###########")
+        web_pages, phones, names = scrape_web_pages(hrefs)
+        print("########### MAILS ###########")
+        emails = find_emails(web_pages)
+
+        # Save emails to a CSV file
+        combined_data = list(zip(names, emails, web_pages, phones))
+        with open('results' + city + '.csv', 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Name', 'Emails', 'Website', 'Phone'])
+            writer.writerows(combined_data)
 
 
 # Function to scrape data from a page
 def scrape_page(route):
     # Loop to scrape all pages
     hrefs = []
+    base_url = os.getenv('URL')
     while True:
         current_url = base_url + route
         response = requests.get(current_url)
@@ -29,11 +49,12 @@ def scrape_page(route):
     return hrefs
 
 
-# Function to scrape web pages for itemprop="sameAs" elements
+# Function to scrape web pages
 def scrape_web_pages(hrefs):
     web_pages = []
     phones = []
     names = []
+    base_url = os.getenv('URL')
     for href in hrefs:
         response = requests.get(base_url + href)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -90,5 +111,7 @@ def find_emails(web_pages):
             except requests.exceptions.ContentDecodingError:
                 print('Content decoding error in ' + page)
                 emails.append("Content decoding error")
-
+            except UnicodeError:
+                print('Invalid url in ' + page)
+                emails.append("Invalid URL")
     return emails
